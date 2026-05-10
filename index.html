@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Defect Detection Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  :root{
+    --bg: #fffaf3;
+    --card:#ffffff;
+    --text:#241a12;
+    --muted:#7a5d55;
+    --yellow:#f1c40f;
+    --yellow-dark:#d4ac0d;
+    --border:#f2e2c7;
+    --shadow: 0 10px 38px rgba(241,196,15,.18);
+    --shadow-sm: 0 6px 18px rgba(0,0,0,.06);
+    --radius:16px;
+    --radius-sm:12px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:'DM Sans',sans-serif;
+    background: radial-gradient(1200px 600px at 50% 0%, rgba(241,196,15,.18), transparent 55%), var(--bg);
+    color:var(--text);
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+
+  nav{
+    padding:20px 28px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+  }
+  .logo{font-family:'Playfair Display',serif;font-size:1.65rem;letter-spacing:-.3px;}
+  .logo em{font-style:italic;color:var(--yellow-dark);}
+  .pill{
+    background: rgba(241,196,15,.18);
+    border: 1px solid rgba(241,196,15,.35);
+    color: var(--yellow-dark);
+    padding:8px 12px;
+    border-radius:999px;
+    font-weight:600;
+    font-size:.85rem;
+  }
+
+  main{
+    max-width:1100px;
+    margin:0 auto;
+    padding: 0 28px 56px;
+  }
+
+  .hero{
+    display:grid;
+    grid-template-columns: 1.1fr .9fr;
+    gap:18px;
+    margin: 10px 0 22px;
+  }
+  @media (max-width: 900px){
+    .hero{grid-template-columns:1fr;}
+  }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .upload-card{padding:22px;}
+  .title{
+    font-family:'Playfair Display',serif;
+    font-size:1.55rem;
+    margin-bottom:8px;
+  }
+  .subtitle{color:var(--muted);font-size:.95rem;margin-bottom:18px;line-height:1.35;}
+
+  .drop{
+    border:2px dashed rgba(241,196,15,.7);
+    background: linear-gradient(180deg, rgba(241,196,15,.10), rgba(241,196,15,.04));
+    border-radius:var(--radius-sm);
+    padding:18px;
+    display:flex;
+    gap:14px;
+    align-items:center;
+    justify-content:space-between;
+  }
+
+  .drop-left{display:flex;flex-direction:column;gap:6px;}
+  .drop-left strong{font-size:.98rem;}
+  .drop-left span{font-size:.85rem;color:var(--muted);}
+
+  .btn{
+    background: var(--yellow);
+    border:1px solid rgba(0,0,0,.05);
+    color:#2b1f00;
+    padding:10px 14px;
+    border-radius:12px;
+    cursor:pointer;
+    font-weight:800;
+    transition: transform .15s, background .15s;
+  }
+  .btn:hover{background:var(--yellow-dark);transform: translateY(-1px);}
+  .btn:disabled{opacity:.6;cursor:not-allowed;transform:none;}
+
+  input[type=file]{display:none;}
+
+  .preview-row{
+    margin-top:16px;
+    display:grid;
+    grid-template-columns: .9fr 1.1fr;
+    gap:16px;
+    align-items:start;
+  }
+  @media (max-width: 900px){ .preview-row{grid-template-columns:1fr;} }
+
+  .preview{
+    padding:14px;
+  }
+  .preview h3{font-size:.95rem;margin-bottom:10px;color:var(--muted);}
+  .preview-box{
+    width:100%;
+    background: #fff;
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:10px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height: 260px;
+  }
+  .preview-box img{max-width:100%;max-height:240px;object-fit:contain;display:none;}
+  .preview-box .placeholder{color:var(--muted);text-align:center;display:flex;flex-direction:column;gap:8px;}
+
+  .results{
+    padding:18px;
+  }
+  .results h3{font-size:1rem;margin-bottom:12px;color:var(--muted);}
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(2,1fr);
+    gap:14px;
+  }
+  @media (max-width: 540px){ .grid{grid-template-columns:1fr;} }
+
+  .result-item{
+    background: linear-gradient(180deg, rgba(241,196,15,.14), rgba(241,196,15,.06));
+    border:1px solid rgba(241,196,15,.25);
+    border-radius:14px;
+    padding:14px;
+  }
+  .result-item .k{color:var(--muted);font-size:.82rem;margin-bottom:6px;}
+  .result-item .v{font-weight:900;font-size:1.25rem;}
+  .score{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+  }
+  .score-bar{
+    height:10px;
+    background: rgba(0,0,0,.06);
+    border-radius:999px;
+    overflow:hidden;
+    margin-top:10px;
+  }
+  .score-fill{height:100%;width:0%;background: linear-gradient(90deg, var(--yellow), #f39c12);}
+
+  .verdict{
+    margin-top:14px;
+    padding:12px 14px;
+    border-radius:14px;
+    border:1px solid var(--border);
+    background:#fff;
+    display:flex;
+    gap:12px;
+    align-items:flex-start;
+  }
+  .badge{
+    padding:6px 10px;
+    border-radius:999px;
+    font-weight:900;
+    border:1px solid transparent;
+  }
+  .badge.good{background: rgba(39,174,96,.14);border-color: rgba(39,174,96,.3);color:#1f7a44;}
+  .badge.review{background: rgba(241,196,15,.18);border-color: rgba(241,196,15,.35);color: #9a6b00;}
+  .badge.bad{background: rgba(231,76,60,.14);border-color: rgba(231,76,60,.35);color:#b23a2c;}
+  .verdict p{color:var(--muted);font-size:.9rem;line-height:1.35;margin-top:2px;}
+
+  .actions{
+    margin-top:14px;
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+
+  .small-note{font-size:.85rem;color:var(--muted);margin-top:14px;line-height:1.35;}
+
+  .loading{
+    display:none;
+    margin-top:10px;
+    gap:10px;
+    align-items:center;
+    color:var(--muted);
+    font-weight:700;
+  }
+  .loading.active{display:flex;}
+  .spinner{
+    width:22px;height:22px;border-radius:50%;
+    border:3px solid rgba(0,0,0,.08);
+    border-top-color: var(--yellow-dark);
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .debug{
+    margin-top:16px;
+    padding:14px;
+    border-radius:14px;
+    border:1px dashed rgba(241,196,15,.45);
+    background: rgba(241,196,15,.06);
+    display:none;
+  }
+  .debug.active{display:block;}
+  .debug pre{white-space:pre-wrap;word-break:break-word;font-size:.78rem;color:#5f4a3f;}
+
+</style>
+</head>
+<body>
+  <nav>
+    <div class="logo">Defect<span style="color:var(--yellow-dark)"><em>Lens</em></span></div>
+    <div class="pill">Computer Vision + ML • Condition Score (0–10)</div>
+  </nav>
+
+  <main>
+    <section class="hero">
+      <div class="card upload-card">
+        <div class="title">Upload product image</div>
+        <div class="subtitle">The system will classify the product type and estimate condition using computer vision. Output includes a 0–10 score and a verdict: Good / To Review / Bad.</div>
+
+        <div class="drop" id="dropZone">
+          <div class="drop-left">
+            <strong>Choose an image</strong>
+            <span>JPG/PNG/WebP • recommended: clear, well-lit</span>
+          </div>
+          <label class="btn" for="fileInput">Upload</label>
+          <input id="fileInput" type="file" accept="image/*" />
+        </div>
+
+        <div class="preview-row">
+          <div class="preview">
+            <h3>Preview</h3>
+            <div class="preview-box">
+              <div class="placeholder" id="placeholder">
+                <div style="font-size:2rem">📷</div>
+                <div>No image uploaded</div>
+              </div>
+              <img id="previewImg" alt="Preview" />
+            </div>
+          </div>
+
+          <div class="results">
+            <h3>Analysis result</h3>
+
+            <div class="grid">
+              <div class="result-item">
+                <div class="k">Product type</div>
+                <div class="v" id="productType">—</div>
+                <div class="k" style="margin-top:10px">Confidence</div>
+                <div class="v" style="font-size:1rem" id="productConf">—</div>
+              </div>
+
+              <div class="result-item">
+                <div class="k">Condition score (0–10)</div>
+                <div class="score">
+                  <div class="v" id="conditionScore">—</div>
+                </div>
+                <div class="score-bar" aria-hidden="true">
+                  <div class="score-fill" id="scoreFill"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="verdict" id="verdictBox" style="margin-top:14px; display:none">
+              <div class="badge good" id="verdictBadge">Good</div>
+              <div>
+                <div style="font-weight:900; margin-top:2px" id="verdictTitle">Good</div>
+                <p id="verdictText">—</p>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="btn" id="analyzeBtn" disabled>Analyze</button>
+              <button class="btn" style="background:#fff;color:var(--yellow-dark);border:1px solid rgba(241,196,15,.55);" id="toggleDebugBtn">Show debug</button>
+            </div>
+
+            <div class="loading" id="loadingRow">
+              <div class="spinner"></div>
+              Analyzing…
+            </div>
+
+            <div class="debug" id="debugBox">
+              <pre id="debugPre">{}</pre>
+            </div>
+
+            <div class="small-note">
+              Note: This first version uses baseline CV heuristics for condition scoring and a placeholder product-type classifier.
+              To improve accuracy, replace the classifier logic with a trained model using your labeled dataset.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:22px;">
+        <div class="title" style="font-size:1.3rem">How verdict is determined</div>
+        <div class="subtitle" style="margin-bottom:10px">Score thresholds:</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div class="verdict" style="margin-top:0">
+            <div class="badge good">Good</div>
+            <div><p>Score ≥ 7.0</p></div>
+          </div>
+          <div class="verdict" style="margin-top:0">
+            <div class="badge review">To Review</div>
+            <div><p>Score 4.0 – 6.99</p></div>
+          </div>
+          <div class="verdict" style="margin-top:0">
+            <div class="badge bad">Bad</div>
+            <div><p>Score < 4.0</p></div>
+          </div>
+        </div>
+        <div class="small-note" style="margin-top:18px">
+          Tip: For best results, use consistent lighting and capture the same product orientation.
+        </div>
+      </div>
+    </section>
+  </main>
+
+<script>
+  const fileInput = document.getElementById('fileInput');
+  const previewImg = document.getElementById('previewImg');
+  const placeholder = document.getElementById('placeholder');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const loadingRow = document.getElementById('loadingRow');
+  const debugBox = document.getElementById('debugBox');
+  const toggleDebugBtn = document.getElementById('toggleDebugBtn');
+
+  const productTypeEl = document.getElementById('productType');
+  const productConfEl = document.getElementById('productConf');
+  const conditionScoreEl = document.getElementById('conditionScore');
+  const scoreFillEl = document.getElementById('scoreFill');
+
+  const verdictBox = document.getElementById('verdictBox');
+  const verdictBadge = document.getElementById('verdictBadge');
+  const verdictTitle = document.getElementById('verdictTitle');
+  const verdictText = document.getElementById('verdictText');
+  const debugPre = document.getElementById('debugPre');
+
+  const API_BASE = window.location.origin;
+
+  function setPreview(file){
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      previewImg.src = reader.result;
+      previewImg.style.display = 'block';
+      placeholder.style.display = 'none';
+      analyzeBtn.disabled = false;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files && fileInput.files[0];
+    setPreview(f);
+  });
+
+  // Drag & drop (optional)
+  const dropZone = document.getElementById('dropZone');
+  dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = 'rgba(241,196,15,.95)'; });
+  dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'rgba(241,196,15,.7)'; });
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = 'rgba(241,196,15,.7)';
+    const f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if(f) {
+      fileInput.files = e.dataTransfer.files;
+      setPreview(f);
+    }
+  });
+
+  toggleDebugBtn.addEventListener('click', () => {
+    const active = debugBox.classList.toggle('active');
+    toggleDebugBtn.textContent = active ? 'Hide debug' : 'Show debug';
+  });
+
+  function verdictUI(verdict, score){
+    verdictBox.style.display = 'flex';
+    verdictBadge.classList.remove('good','review','bad');
+
+    if(verdict === 'Good'){
+      verdictBadge.classList.add('good');
+      verdictBadge.textContent = 'Good';
+      verdictTitle.textContent = 'Good';
+      verdictText.textContent = `Condition looks healthy (score ${score}/10).`; 
+    } else if(verdict === 'To Review'){
+      verdictBadge.classList.add('review');
+      verdictBadge.textContent = 'To Review';
+      verdictTitle.textContent = 'To Review';
+      verdictText.textContent = `Potential issues detected—review recommended (score ${score}/10).`;
+    } else {
+      verdictBadge.classList.add('bad');
+      verdictBadge.textContent = 'Bad';
+      verdictTitle.textContent = 'Bad';
+      verdictText.textContent = `Defect indicators are strong—reject recommended (score ${score}/10).`;
+    }
+  }
+
+  analyzeBtn.addEventListener('click', async () => {
+    const file = fileInput.files && fileInput.files[0];
+    if(!file) return;
+
+    analyzeBtn.disabled = true;
+    loadingRow.classList.add('active');
+
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+
+      const res = await fetch(API_BASE + '/api/detect', {
+        method: 'POST',
+        body: fd
+      });
+
+      const data = await res.json();
+      if(!res.ok || data.error){
+        throw new Error(data.error || 'Detection failed');
+      }
+
+      productTypeEl.textContent = data.product_type || 'Unknown';
+      productConfEl.textContent = `${(data.product_confidence ?? 0).toFixed(2)}`;
+      conditionScoreEl.textContent = `${data.condition_score}`;
+
+      const score = Number(data.condition_score);
+      const pct = Math.max(0, Math.min(100, (score / 10) * 100));
+      scoreFillEl.style.width = pct + '%';
+
+      verdictUI(data.verdict, data.condition_score);
+
+      debugPre.textContent = JSON.stringify(data.debug, null, 2);
+    } catch (e){
+      console.error(e);
+
+      // Show the backend error payload in the debug panel so you always see why
+      // the analysis didn't render.
+      let msg = '';
+      if (e && typeof e.message === 'string') msg = e.message;
+
+      productTypeEl.textContent = '—';
+      productConfEl.textContent = '—';
+      conditionScoreEl.textContent = '—';
+      scoreFillEl.style.width = '0%';
+      verdictBox.style.display = 'none';
+
+      debugPre.textContent = msg ? msg : String(e);
+      debugBox.classList.add('active');
+      toggleDebugBtn.textContent = 'Hide debug';
+
+      alert('Detection error: ' + msg);
+    } finally {
+      loadingRow.classList.remove('active');
+      analyzeBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
