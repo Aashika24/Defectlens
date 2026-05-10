@@ -1,0 +1,165 @@
+import cv2
+import numpy as np
+
+
+def _safe_gray(img_bgr: np.ndarray) -> np.ndarray:
+    if img_bgr is None:
+        raise ValueError("Image is empty")
+    if len(img_bgr.shape) == 2:
+        gray = img_bgr
+    else:
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    return gray
+
+
+def extract_features(gray: np.ndarray) -> dict:
+    """Baseline, lightweight features. These are not a trained deep model.
+    Designed to provide a reasonable first-pass condition score.
+    """
+    h, w = gray.shape[:2]
+    scale = 1.0
+    if max(h, w) > 1200:
+        scale = 1200.0 / max(h, w)
+        gray = cv2.resize(gray, (int(w * scale), int(h * scale)))
+
+    # Basic stats
+    mean = float(np.mean(gray))
+    std = float(np.std(gray))
+
+    # Blur estimate (variance of Laplacian)
+    lap = cv2.Laplacian(gray, cv2.CV_64F)
+    lap_var = float(lap.var())
+
+    # Edge density
+    edges = cv2.Canny(gray, 50, 150)
+    edge_density = float(edges.mean() / 255.0)
+
+    # Contrast / exposure proxies
+    # Use percentile spread for robustness
+    p5, p95 = np.percentile(gray, [5, 95])
+    contrast = float((p95 - p5) / 255.0)
+
+    # Brightness saturation proxy
+    sat_proxy = float(np.clip((mean - 30.0) / 200.0, 0.0, 1.0))
+
+    return {
+        "mean": mean,
+        "std": std,
+        "lap_var": lap_var,
+        "edge_density": edge_density,
+        "contrast": contrast,
+        "sat_proxy": sat_proxy,
+        "height": float(h),
+        "width": float(w),
+    }
+
+
+def predict_product_type(gray: np.ndarray) -> dict:
+    """Placeholder product-type classifier.
+
+    Without a labeled dataset, we cannot reliably infer categories.
+    This function provides a hook for a future trained model.
+
+    Heuristics: attempt to infer if the image looks like it contains
+    strong straight edges (box-like packaging) vs mostly textured/low-structure.
+    """
+    edges = cv2.Canny(gray, 50, 150)
+    edge_density = float(edges.mean() / 255.0)
+
+    # Simple buckets
+    if edge_density > 0.045:
+        product_type = "Packaged Item"
+        confidence = min(0.95, 0.4 + (edge_density * 6.0))
+    else:
+        product_type = "Loose/Flat Item"
+        confidence = min(0.9, 0.35 + (edge_density * 8.0))
+
+    return {
+        "product_type": product_type,
+        "confidence": float(confidence),
+    }
+
+
+def condition_score_from_features(feats: dict) -> dict:
+    """Map extracted features to a 0-10 condition score.
+
+    Higher score => better condition.
+    """
+    # Blur proxy: low lap_var => blur => worse
+    lap_var = max(0.0, feats["lap_var"])
+    # Normalize lap_var logarithmically
+    lap_norm = np.log10(lap_var + 1.0)  # ~ 0..~3
+    blur_goodness = float(np.clip(lap_norm / 2.4, 0.0, 1.0))
+
+    # Edge density: too low might indicate blur/low detail; too high can indicate noise.
+    edge_density = float(feats["edge_density"])
+    # Peak around 0.03-0.06
+    edge_center = 0.04
+    edge_spread = 0.03
+    edge_goodness = float(np.exp(-((edge_density - edge_center) ** 2) / (2 * edge_spread ** 2)))
+
+    contrast = float(feats["contrast"])  # 0..1
+    contrast_goodness = float(np.clip(contrast / 0.25, 0.0, 1.0))
+
+    std = float(feats["std"])
+    # std too low => nearly uniform; too high => maybe overexposed/noisy
+    std_goodness = float(np.clip((std - 15.0) / 60.0, 0.0, 1.0))
+
+    # Combine goodness into defect penalty
+    goodness = 0.35 * blur_goodness + 0.25 * edge_goodness + 0.20 * contrast_goodness + 0.20 * std_goodness
+    defectness = 1.0 - goodness
+
+    score_0_to_10 = float(np.clip(10.0 * goodness, 0.0, 10.0))
+
+    # Verdict bands
+    # Good: >= 7.0
+    # To Review: 4.0 - 6.99
+    # Bad: < 4.0
+    if score_0_to_10 >= 7.0:
+        verdict = "Good"
+    elif score_0_to_10 >= 4.0:
+        verdict = "To Review"
+    else:
+        verdict = "Bad"
+
+    return {
+        "condition_score": round(score_0_to_10, 2),
+        "verdict": verdict,
+        "breakdown": {
+            "blur_goodness": round(blur_goodness, 3),
+            "edge_goodness": round(edge_goodness, 3),
+            "contrast_goodness": round(contrast_goodness, 3),
+            "std_goodness": round(std_goodness, 3),
+            "overall_goodness": round(goodness, 3),
+            "defectness": round(defectness, 3),
+        },
+    }
+
+
+def analyze_image(image_bytes: bytes) -> dict:
+    """Main entry point used by Flask.
+
+    Returns a dict with:
+    - product_type + confidence
+    - condition_score (0-10)
+    - verdict (Good/To Review/Bad)
+    - feature breakdown (debug)
+    """
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    gray = _safe_gray(img_bgr)
+
+    feats = extract_features(gray)
+    prod = predict_product_type(gray)
+    cond = condition_score_from_features(feats)
+
+    return {
+        "product_type": prod["product_type"],
+        "product_confidence": round(prod["confidence"], 3),
+        "condition_score": cond["condition_score"],
+        "verdict": cond["verdict"],
+        "debug": {
+            "features": feats,
+            "breakdown": cond["breakdown"],
+        },
+    }
